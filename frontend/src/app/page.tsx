@@ -8,6 +8,7 @@ import ReportUploadModal from './components/ReportUploadModal';
 import { FiUpload } from 'react-icons/fi';
 import { useAuth } from './context/AuthContext';
 import { useRouter } from 'next/navigation';
+import config from './config';
 
 interface Metric {
   id: number;
@@ -55,7 +56,7 @@ export default function Home() {
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/metrics/${user?.id}`, {
+      const response = await fetch(`${config.apiUrl}/api/metrics/${user?.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -77,6 +78,7 @@ export default function Home() {
       setMetrics(processedData);
       setError('');
     } catch (err) {
+      console.error('Error fetching metrics:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch metrics');
     } finally {
       setLoading(false);
@@ -115,8 +117,21 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user?.id || !token) {
+      setError('Please log in to add metrics');
+      return;
+    }
+
     try {
-      const response = await fetch('http://localhost:5000/api/metrics', {
+      // Parse the value as a number
+      const numericValue = parseFloat(formData.value);
+      if (isNaN(numericValue)) {
+        setError('Please enter a valid number');
+        return;
+      }
+
+      const response = await fetch(`${config.apiUrl}/api/metrics`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -124,31 +139,43 @@ export default function Home() {
         },
         body: JSON.stringify({
           metric_type: formData.metric_type,
-          value: formData.value.toString(),
+          value: numericValue,
           unit: getDefaultUnit(formData.metric_type),
           notes: formData.notes,
-          user_id: user?.id
+          user_id: user.id
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to add metric');
+      if (response.status === 401) {
+        // Token expired or invalid
+        router.push('/login');
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to add metric' }));
+        throw new Error(errorData.error || 'Failed to add metric');
+      }
       
+      // Clear form and error on success
       setFormData({
         metric_type: 'weight',
         value: '',
         notes: '',
       });
+      setError('');
       
       // Immediately fetch metrics after adding new one
       await fetchMetrics();
     } catch (err) {
+      console.error('Error adding metric:', err);
       setError(err instanceof Error ? err.message : 'Failed to add metric');
     }
   };
 
   const onAddMetric = async (type: string, value: number) => {
     try {
-      const response = await fetch('http://localhost:5000/api/metrics', {
+      const response = await fetch(`${config.apiUrl}/api/metrics`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -163,9 +190,14 @@ export default function Home() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to add metric');
-      fetchMetrics();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add metric');
+      }
+      await fetchMetrics();
+      setError(''); // Clear any previous errors
     } catch (err) {
+      console.error('Error adding metric:', err);
       setError(err instanceof Error ? err.message : 'Failed to add metric');
     }
   };
@@ -252,7 +284,7 @@ export default function Home() {
     if (!confirm('Are you sure you want to delete this metric?')) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/metrics/${metricId}`, {
+      const response = await fetch(`${config.apiUrl}/api/metrics/${metricId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
