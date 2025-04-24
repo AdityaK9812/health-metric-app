@@ -1,4 +1,7 @@
+'use client';
+
 import { useState, useEffect } from 'react';
+import config from '../config';
 
 interface Message {
   text: string;
@@ -197,7 +200,7 @@ export default function Chatbot({ metrics, onAddMetric, token }: ChatbotProps) {
         console.log('Sending request to Gemini...');
         setIsTyping(true);
 
-        const response = await fetch('http://localhost:5000/api/chat', {
+        const response = await fetch(`${config.apiUrl}/api/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

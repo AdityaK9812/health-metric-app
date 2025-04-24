@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'next/navigation';
+import config from '../config';
 
 ChartJS.register(
   CategoryScale,
@@ -60,7 +61,7 @@ export default function Metrics() {
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/metrics/${user?.id}`, {
+      const response = await fetch(`${config.apiUrl}/api/metrics/${user?.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -80,8 +81,10 @@ export default function Metrics() {
         return dateB - dateA;
       });
       setMetrics(processedData);
+      setError(null); // Clear any previous errors
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Error fetching metrics:', err);
     } finally {
       setLoading(false);
     }
