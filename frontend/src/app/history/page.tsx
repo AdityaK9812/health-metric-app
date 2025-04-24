@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'next/navigation';
+import config from '../config';
 
 interface Metric {
   id: number;
@@ -45,27 +46,52 @@ export default function History() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user?.id || !token) {
       router.push('/login');
       return;
     }
     fetchMetrics();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id, token]);
 
   const fetchMetrics = async () => {
+    if (!user?.id || !token) {
+      setError('Please log in to view your metrics history');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:5000/api/metrics/${user?.id}`, {
+      const response = await fetch(`${config.apiUrl}/api/metrics/${user.id}`, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
-      if (!response.ok) {
-        throw new Error('Failed to fetch metrics');
+
+      if (response.status === 401) {
+        // Token expired or invalid
+        router.push('/login');
+        return;
       }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch metrics' }));
+        throw new Error(errorData.error || 'Failed to fetch metrics');
+      }
+
       const data = await response.json();
-      setMetrics(data);
+      
+      // Sort metrics by recorded_at in descending order
+      const sortedMetrics = data.sort((a: Metric, b: Metric) => {
+        return new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
+      });
+      
+      setMetrics(sortedMetrics);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Error fetching metrics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch metrics');
     } finally {
       setLoading(false);
     }
@@ -98,7 +124,7 @@ export default function History() {
     if (!confirm('Are you sure you want to delete this metric?')) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/metrics/${id}`, {
+      const response = await fetch(`${config.apiUrl}/api/metrics/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -109,6 +135,7 @@ export default function History() {
       }
       await fetchMetrics();
     } catch (err) {
+      console.error('Error deleting metric:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete metric');
     }
   };
