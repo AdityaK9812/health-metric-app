@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
+import config from '../config';
 
 export default function Register() {
   const [mounted, setMounted] = useState(false);
@@ -51,7 +52,7 @@ export default function Register() {
 
     try {
       // Register the user
-      const registerResponse = await fetch('http://localhost:5000/api/auth/register', {
+      const registerResponse = await fetch(`${config.apiUrl}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
