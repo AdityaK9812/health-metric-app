@@ -21,6 +21,7 @@ def init_db():
                   unit TEXT NOT NULL,
                   recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                   notes TEXT,
+                  encrypted BOOLEAN DEFAULT FALSE,
                   FOREIGN KEY (user_id) REFERENCES users (id))''')
     
     conn.commit()

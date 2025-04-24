@@ -94,39 +94,68 @@ def logout(user):
 @app.route('/api/metrics', methods=['POST'])
 @token_required
 def add_metric(user):
-    data = request.get_json()
-    
-    metric = HealthMetric(
-        user_id=user.id,
-        metric_type=data['metric_type'],
-        value=data['value'],
-        unit=data.get('unit'),
-        notes=data.get('notes', '')
-    )
-    
-    # Encrypt sensitive data
-    metric = encryption.encrypt_metric(metric)
-    
-    db.session.add(metric)
-    db.session.commit()
-    
-    return jsonify({
-        "message": "Metric added successfully",
-        "metric_id": metric.id
-    }), 201
+    try:
+        data = request.get_json()
+        
+        metric = HealthMetric(
+            user_id=user.id,
+            metric_type=data['metric_type'],
+            value=data['value'],
+            unit=data.get('unit'),
+            notes=data.get('notes', '')
+        )
+        
+        # Only encrypt sensitive metrics
+        if metric.metric_type in ['blood_pressure', 'blood_sugar', 'weight']:
+            try:
+                metric = encryption.encrypt_metric(metric)
+            except Exception as e:
+                logger.error(f"Encryption error: {str(e)}")
+                return jsonify({'error': 'Failed to encrypt metric'}), 500
+        
+        db.session.add(metric)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Metric added successfully",
+            "metric_id": metric.id
+        }), 201
+    except Exception as e:
+        logger.error(f"Error adding metric: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/metrics/<int:user_id>', methods=['GET'])
 @token_required
 def get_user_metrics(user, user_id):
-    if user.id != user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    metrics = HealthMetric.query.filter_by(user_id=user_id).all()
-    
-    # Decrypt sensitive data
-    decrypted_metrics = [encryption.decrypt_metric(metric) for metric in metrics]
-    
-    return jsonify([metric.to_dict() for metric in decrypted_metrics]), 200
+    try:
+        if user.id != user_id:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        metrics = HealthMetric.query.filter_by(user_id=user_id).all()
+        
+        # Decrypt sensitive metrics
+        decrypted_metrics = []
+        for metric in metrics:
+            try:
+                if metric.encrypted:
+                    metric = encryption.decrypt_metric(metric)
+                decrypted_metrics.append(metric)
+            except Exception as e:
+                logger.error(f"Decryption error for metric {metric.id}: {str(e)}")
+                # Skip failed decryption but continue with other metrics
+                continue
+        
+        return jsonify([{
+            'id': m.id,
+            'metric_type': m.metric_type,
+            'value': m.value,
+            'unit': m.unit,
+            'recorded_at': m.recorded_at.isoformat(),
+            'notes': m.notes
+        } for m in decrypted_metrics]), 200
+    except Exception as e:
+        logger.error(f"Error fetching metrics: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/metrics/<int:metric_id>', methods=['DELETE'])
 @token_required
