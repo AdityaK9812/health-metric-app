@@ -9,7 +9,7 @@ interface Message {
 interface ChatbotProps {
   metrics: any[];
   onAddMetric: (type: string, value: number) => void;
-  token: string;
+  token: string | null;
 }
 
 interface MetricData {
@@ -79,7 +79,9 @@ const metricInfo: MetricTypes = {
 export default function Chatbot({ metrics, onAddMetric, token }: ChatbotProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
-      text: "Hello, I'm your health assistant. How may I help you today?",
+      text: token 
+        ? "Hello, I'm your health assistant. How may I help you today?"
+        : "Please log in to use the chat assistant.",
       sender: 'bot',
       timestamp: new Date(),
     },
@@ -159,6 +161,14 @@ export default function Chatbot({ metrics, onAddMetric, token }: ChatbotProps) {
 
   const handleSend = async () => {
     if (!input.trim()) return;
+    if (!token) {
+      setMessages(prev => [...prev, {
+        text: "Please log in to use the chat assistant.",
+        sender: 'bot',
+        timestamp: new Date(),
+      }]);
+      return;
+    }
 
     const userMessage: Message = {
       text: input,
@@ -398,7 +408,9 @@ export default function Chatbot({ metrics, onAddMetric, token }: ChatbotProps) {
 
   const resetConversation = () => {
     setMessages([{
-      text: "Hello, I'm your health assistant. How may I help you today?",
+      text: token 
+        ? "Hello, I'm your health assistant. How may I help you today?"
+        : "Please log in to use the chat assistant.",
       sender: 'bot',
       timestamp: new Date(),
     }]);
